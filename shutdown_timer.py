@@ -17,23 +17,26 @@ class ShutdownTimer:
         self.lock_ui = False
 
         # ---------------- 模式变量 ----------------
-        self.mode_var = tk.StringVar(value="countdown")  # 默认倒计时
-        self.action_var = tk.StringVar(value="shutdown")
+        self.mode_var = tk.StringVar(value="countdown")   # 默认倒计时
+        self.action_var = tk.StringVar(value="shutdown")  # 默认关机
 
         # ---------------- 模式选择 ----------------
-        mode_frame = ttk.LabelFrame(root, text="模式选择")
-        mode_frame.pack(fill="x", padx=10, pady=5)
+        self.mode_frame = ttk.LabelFrame(root, text="模式选择")
+        self.mode_frame.pack(fill="x", padx=10, pady=5)
 
-        ttk.Radiobutton(mode_frame, text="倒计时", value="countdown",
-                        variable=self.mode_var, command=self.switch_mode).pack(side="left", padx=5)
-        ttk.Radiobutton(mode_frame, text="指定时间", value="clock",
-                        variable=self.mode_var, command=self.switch_mode).pack(side="left", padx=5)
+        self.rb_clock = ttk.Radiobutton(self.mode_frame, text="指定时间", value="clock",
+                                        variable=self.mode_var, command=self.switch_mode)
+        self.rb_clock.pack(side="left", padx=5)
+
+        self.rb_count = ttk.Radiobutton(self.mode_frame, text="倒计时", value="countdown",
+                                        variable=self.mode_var, command=self.switch_mode)
+        self.rb_count.pack(side="left", padx=5)
 
         # ---------------- 时间输入区 ----------------
         self.time_frame = ttk.Frame(root)
         self.time_frame.pack(fill="x", padx=10, pady=5)
 
-        # 倒计时（默认显示）
+        # 倒计时（默认左侧）
         self.countdown_frame = ttk.Frame(self.time_frame)
         self.countdown_frame.pack(side="left")
         ttk.Label(self.countdown_frame, text="倒计时 时").pack(side="left")
@@ -45,7 +48,7 @@ class ShutdownTimer:
         self.min_spin.insert(0, "0")
         self.min_spin.pack(side="left")
 
-        # 指定时间（默认隐藏，放右边）
+        # 指定时间（默认隐藏，放右侧）
         self.clock_frame = ttk.Frame(self.time_frame)
         self.clock_frame.pack_forget()
         ttk.Label(self.clock_frame, text="目标时间 (HH:MM):").pack(side="left")
@@ -54,12 +57,15 @@ class ShutdownTimer:
         self.clock_entry.pack(side="left", padx=5)
 
         # ---------------- 操作选择 ----------------
-        action_frame = ttk.LabelFrame(root, text="执行操作")
-        action_frame.pack(fill="x", padx=10, pady=5)
+        self.action_frame = ttk.LabelFrame(root, text="执行操作")
+        self.action_frame.pack(fill="x", padx=10, pady=5)
+
+        self.action_rbs = []
         action_map = [("关机", "shutdown"), ("重启", "restart"), ("睡眠", "sleep"), ("休眠", "hibernate")]
         for txt, val in action_map:
-            ttk.Radiobutton(action_frame, text=txt, value=val,
-                            variable=self.action_var).pack(side="left", padx=5)
+            rb = ttk.Radiobutton(self.action_frame, text=txt, value=val, variable=self.action_var)
+            rb.pack(side="left", padx=5)
+            self.action_rbs.append(rb)
 
         # ---------------- 按钮 ----------------
         btn_frame = ttk.Frame(root)
@@ -100,9 +106,8 @@ class ShutdownTimer:
                 target_dt = datetime.combine(now.date(), target_time)
                 if target_dt <= now:
                     target_dt += timedelta(days=1)
-                delta = target_dt - now
-                seconds = int(delta.total_seconds())
-                confirm_text = f"确定要在 {target_str} 执行【{action_name}】吗？"
+                seconds = int((target_dt - now).total_seconds())
+                confirm_text = f"确定在 {target_str} 执行【{action_name}】吗？"
             except ValueError:
                 messagebox.showerror("错误", "时间格式应为 HH:MM")
                 return
@@ -119,11 +124,10 @@ class ShutdownTimer:
                 messagebox.showerror("错误", "请输入有效数字")
                 return
 
-        # 自定义二次确认框，右上角 × 视为取消
         if not self.ask_yes_no(confirm_text):
             return
 
-        # 锁定界面
+        # 锁定所有控件
         self.lock_ui = True
         self.set_widgets_state("disabled")
         self.running = True
@@ -133,15 +137,15 @@ class ShutdownTimer:
         self.task.daemon = True
         self.task.start()
 
-    # --------------- 二次确认框（主窗口居中） ---------------
+    # --------------- 二次确认框（居中） ---------------
     def ask_yes_no(self, message):
         top = tk.Toplevel(self.root)
         top.title("请确认")
         top.resizable(False, False)
         top.transient(self.root)
         top.grab_set()
+        top.lift()   # 置顶
 
-        # 内容
         ttk.Label(top, text=message, wraplength=300).pack(pady=10)
         result = tk.BooleanVar(value=False)
 
@@ -158,10 +162,9 @@ class ShutdownTimer:
         ttk.Button(btn_frame, text="确定", command=yes).pack(side="left", padx=10)
         ttk.Button(btn_frame, text="取消", command=no).pack(side="left", padx=10)
 
-        # 右上角 × 视为取消
         top.protocol("WM_DELETE_WINDOW", no)
 
-        # 计算居中位置
+        # 居中
         top.update_idletasks()
         w, h = top.winfo_width(), top.winfo_height()
         parent_x = self.root.winfo_x()
@@ -171,12 +174,6 @@ class ShutdownTimer:
         x = parent_x + (parent_w - w) // 2
         y = parent_y + (parent_h - h) // 2
         top.geometry(f"+{x}+{y}")
-
-        top.wait_window()
-        return result.get()
-
-        # 右上角 × 视为取消
-        top.protocol("WM_DELETE_WINDOW", no)
         top.wait_window()
         return result.get()
 
@@ -209,18 +206,22 @@ class ShutdownTimer:
         subprocess.Popen(cmd_map[action], shell=True)
         self.root.quit()
 
-    # --------------- 统一启用/禁用控件 ---------------
+    # --------------- 统一启用/禁用 ---------------
     def set_widgets_state(self, state):
-        for w in (self.clock_entry, self.hour_spin, self.min_spin,
-                  self.start_btn):
-            w.config(state=state)
-        # 模式单选框也禁用
-        for rb in self.root.nametowidget(".!labelframe").winfo_children():
-            if isinstance(rb, ttk.Radiobutton):
-                rb.config(state=state)
+        # 模式单选按钮
+        self.rb_clock.config(state=state)
+        self.rb_count.config(state=state)
+        # 操作单选按钮
+        for rb in self.action_rbs:
+            rb.config(state=state)
+        # 时间控件
+        self.clock_entry.config(state=state)
+        self.hour_spin.config(state=state)
+        self.min_spin.config(state=state)
+        # 启动按钮
+        self.start_btn.config(state=state)
 
 if __name__ == "__main__":
     root = tk.Tk()
     ShutdownTimer(root)
     root.mainloop()
-
