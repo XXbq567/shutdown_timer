@@ -133,15 +133,15 @@ class ShutdownTimer:
         self.task.daemon = True
         self.task.start()
 
-    # --------------- 二次确认框（支持 × 取消） ---------------
+    # --------------- 二次确认框（主窗口居中） ---------------
     def ask_yes_no(self, message):
         top = tk.Toplevel(self.root)
         top.title("请确认")
-        top.geometry("320x120")
         top.resizable(False, False)
         top.transient(self.root)
         top.grab_set()
 
+        # 内容
         ttk.Label(top, text=message, wraplength=300).pack(pady=10)
         result = tk.BooleanVar(value=False)
 
@@ -157,6 +157,23 @@ class ShutdownTimer:
         btn_frame.pack(pady=5)
         ttk.Button(btn_frame, text="确定", command=yes).pack(side="left", padx=10)
         ttk.Button(btn_frame, text="取消", command=no).pack(side="left", padx=10)
+
+        # 右上角 × 视为取消
+        top.protocol("WM_DELETE_WINDOW", no)
+
+        # 计算居中位置
+        top.update_idletasks()
+        w, h = top.winfo_width(), top.winfo_height()
+        parent_x = self.root.winfo_x()
+        parent_y = self.root.winfo_y()
+        parent_w = self.root.winfo_width()
+        parent_h = self.root.winfo_height()
+        x = parent_x + (parent_w - w) // 2
+        y = parent_y + (parent_h - h) // 2
+        top.geometry(f"+{x}+{y}")
+
+        top.wait_window()
+        return result.get()
 
         # 右上角 × 视为取消
         top.protocol("WM_DELETE_WINDOW", no)
@@ -206,3 +223,4 @@ if __name__ == "__main__":
     root = tk.Tk()
     ShutdownTimer(root)
     root.mainloop()
+
