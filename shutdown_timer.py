@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 定时关机 / 重启 / 睡眠 / 休眠 小工具
 作者  : XXbq567
@@ -11,6 +13,7 @@ import subprocess
 import threading
 import time
 from datetime import datetime, timedelta
+import webbrowser    # <<== 新增
 
 class ShutdownTimer:
     def __init__(self, root):
@@ -24,8 +27,8 @@ class ShutdownTimer:
         self.lock_ui = False
 
         # ---------------- 模式变量 ----------------
-        self.mode_var = tk.StringVar(value="countdown")   # 默认倒计时
-        self.action_var = tk.StringVar(value="shutdown")  # 默认关机
+        self.mode_var = tk.StringVar(value="countdown")
+        self.action_var = tk.StringVar(value="shutdown")
 
         # ---------------- 模式选择 ----------------
         self.mode_frame = ttk.LabelFrame(root, text="模式选择")
@@ -74,19 +77,26 @@ class ShutdownTimer:
             rb.pack(side="left", padx=5)
             self.action_rbs.append(rb)
 
-        # ---------------- 按钮 ----------------
+        # ---------------- 按钮区 ----------------
         btn_frame = ttk.Frame(root)
-        btn_frame.pack(pady=10)
+        btn_frame.pack(pady=5)
         self.start_btn = ttk.Button(btn_frame, text="启动", command=self.start_timer)
         self.start_btn.pack(side="left", padx=10)
         self.cancel_btn = ttk.Button(btn_frame, text="取消", command=self.cancel_timer)
-        self.cancel_btn.pack(side="left")
+        self.cancel_btn.pack(side="left", padx=10)
+
+        # ---------------- 更新按钮 ----------------
+        ttk.Button(root, text="更新", command=self.open_update).pack(pady=3)
 
         # ---------------- 状态标签 ----------------
         self.status_lbl = ttk.Label(root, text="未启动", foreground="blue")
-        self.status_lbl.pack(pady=5)
+        self.status_lbl.pack(pady=2)
 
-    # --------------- 界面切换 ---------------
+    # --------------- 跳转仓库 ---------------
+    def open_update(self):
+        webbrowser.open("https://github.com/XXbq567/shutdown_timer")
+
+    # --------------- 以下代码与之前完全一致 ---------------
     def switch_mode(self):
         if self.mode_var.get() == "clock":
             self.countdown_frame.pack_forget()
@@ -95,7 +105,6 @@ class ShutdownTimer:
             self.clock_frame.pack_forget()
             self.countdown_frame.pack(side="left")
 
-    # --------------- 启动 ---------------
     def start_timer(self):
         if self.lock_ui:
             messagebox.showinfo("提示", "请先取消当前任务后再修改。")
@@ -134,7 +143,6 @@ class ShutdownTimer:
         if not self.ask_yes_no(confirm_text):
             return
 
-        # 锁定所有控件
         self.lock_ui = True
         self.set_widgets_state("disabled")
         self.running = True
@@ -144,14 +152,13 @@ class ShutdownTimer:
         self.task.daemon = True
         self.task.start()
 
-    # --------------- 二次确认框（居中） ---------------
     def ask_yes_no(self, message):
         top = tk.Toplevel(self.root)
         top.title("请确认")
         top.resizable(False, False)
         top.transient(self.root)
         top.grab_set()
-        top.lift()   # 置顶
+        top.lift()
 
         ttk.Label(top, text=message, wraplength=300).pack(pady=10)
         result = tk.BooleanVar(value=False)
@@ -171,20 +178,14 @@ class ShutdownTimer:
 
         top.protocol("WM_DELETE_WINDOW", no)
 
-        # 居中
         top.update_idletasks()
         w, h = top.winfo_width(), top.winfo_height()
-        parent_x = self.root.winfo_x()
-        parent_y = self.root.winfo_y()
-        parent_w = self.root.winfo_width()
-        parent_h = self.root.winfo_height()
-        x = parent_x + (parent_w - w) // 2
-        y = parent_y + (parent_h - h) // 2
+        x = self.root.winfo_x() + (self.root.winfo_width() - w) // 2
+        y = self.root.winfo_y() + (self.root.winfo_height() - h) // 2
         top.geometry(f"+{x}+{y}")
         top.wait_window()
         return result.get()
 
-    # --------------- 取消 ---------------
     def cancel_timer(self):
         self.running = False
         self.lock_ui = False
@@ -193,17 +194,14 @@ class ShutdownTimer:
         if self.task and self.task.is_alive():
             self.task.join(timeout=0.1)
 
-    # --------------- 线程倒计时 ---------------
     def countdown_and_execute(self, seconds, action):
         while seconds > 0 and self.running:
             mins, secs = divmod(seconds, 60)
             self.status_lbl.config(text=f"剩余 {mins:02d}:{secs:02d}")
             time.sleep(1)
             seconds -= 1
-
         if not self.running:
             return
-
         cmd_map = {
             "shutdown": "shutdown /s /f /t 0",
             "restart": "shutdown /r /f /t 0",
@@ -213,23 +211,17 @@ class ShutdownTimer:
         subprocess.Popen(cmd_map[action], shell=True)
         self.root.quit()
 
-    # --------------- 统一启用/禁用 ---------------
     def set_widgets_state(self, state):
-        # 模式单选按钮
         self.rb_clock.config(state=state)
         self.rb_count.config(state=state)
-        # 操作单选按钮
         for rb in self.action_rbs:
             rb.config(state=state)
-        # 时间控件
         self.clock_entry.config(state=state)
         self.hour_spin.config(state=state)
         self.min_spin.config(state=state)
-        # 启动按钮
         self.start_btn.config(state=state)
 
 if __name__ == "__main__":
     root = tk.Tk()
     ShutdownTimer(root)
     root.mainloop()
-
