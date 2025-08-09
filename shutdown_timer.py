@@ -13,7 +13,7 @@ import subprocess
 import threading
 import time
 from datetime import datetime, timedelta
-import webbrowser    # <<== 新增
+import webbrowser
 
 class ShutdownTimer:
     def __init__(self, root):
@@ -46,7 +46,6 @@ class ShutdownTimer:
         self.time_frame = ttk.Frame(root)
         self.time_frame.pack(fill="x", padx=10, pady=5)
 
-        # 倒计时（默认左侧）
         self.countdown_frame = ttk.Frame(self.time_frame)
         self.countdown_frame.pack(side="left")
         ttk.Label(self.countdown_frame, text="倒计时 时").pack(side="left")
@@ -58,7 +57,6 @@ class ShutdownTimer:
         self.min_spin.insert(0, "0")
         self.min_spin.pack(side="left")
 
-        # 指定时间（默认隐藏，放右侧）
         self.clock_frame = ttk.Frame(self.time_frame)
         self.clock_frame.pack_forget()
         ttk.Label(self.clock_frame, text="目标时间 (HH:MM):").pack(side="left")
@@ -85,18 +83,24 @@ class ShutdownTimer:
         self.cancel_btn = ttk.Button(btn_frame, text="取消", command=self.cancel_timer)
         self.cancel_btn.pack(side="left", padx=10)
 
-        # ---------------- 更新按钮 ----------------
-        ttk.Button(root, text="更新", command=self.open_update).pack(pady=3)
-
         # ---------------- 状态标签 ----------------
         self.status_lbl = ttk.Label(root, text="未启动", foreground="blue")
         self.status_lbl.pack(pady=2)
 
-    # --------------- 跳转仓库 ---------------
-    def open_update(self):
-        webbrowser.open("https://github.com/XXbq567/shutdown_timer")
+        # ---------------- 更新链接（底部居中、小号、蓝色） ----------------
+        self.update_lbl = tk.Label(
+            root, text="更新", fg="blue", cursor="hand2",
+            font=("Segoe UI", 9)
+        )
+        self.update_lbl.pack(side="bottom", pady=2)
+        self.update_lbl.bind("<Button-1>", lambda e: self.open_update())
 
-    # --------------- 以下代码与之前完全一致 ---------------
+    # --------------- 跳转 Actions ---------------
+    def open_update(self):
+        if not self.lock_ui:
+            webbrowser.open("https://github.com/XXbq567/shutdown_timer/actions")
+
+    # --------------- 以下与之前完全一致 ---------------
     def switch_mode(self):
         if self.mode_var.get() == "clock":
             self.countdown_frame.pack_forget()
@@ -220,6 +224,9 @@ class ShutdownTimer:
         self.hour_spin.config(state=state)
         self.min_spin.config(state=state)
         self.start_btn.config(state=state)
+        # 更新链接
+        self.update_lbl.config(state=state,
+                               fg=("blue" if state == "normal" else "gray"))
 
 if __name__ == "__main__":
     root = tk.Tk()
