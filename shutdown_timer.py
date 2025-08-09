@@ -46,6 +46,7 @@ class ShutdownTimer:
         self.time_frame = ttk.Frame(root)
         self.time_frame.pack(fill="x", padx=10, pady=5)
 
+        # 倒计时
         self.countdown_frame = ttk.Frame(self.time_frame)
         self.countdown_frame.pack(side="left")
         ttk.Label(self.countdown_frame, text="倒计时 时").pack(side="left")
@@ -57,6 +58,7 @@ class ShutdownTimer:
         self.min_spin.insert(0, "0")
         self.min_spin.pack(side="left")
 
+        # 指定时间
         self.clock_frame = ttk.Frame(self.time_frame)
         self.clock_frame.pack_forget()
         ttk.Label(self.clock_frame, text="目标时间 (HH:MM):").pack(side="left")
@@ -87,18 +89,18 @@ class ShutdownTimer:
         self.status_lbl = ttk.Label(root, text="未启动", foreground="blue")
         self.status_lbl.pack(pady=2)
 
-        # ---------------- 更新链接（底部居中、小号、蓝色） ----------------
+        # ---------------- 更新链接（最底部居中，小字） ----------------
         self.update_lbl = tk.Label(
             root, text="更新", fg="blue", cursor="hand2",
-            font=("Segoe UI", 9)
+            font=("Segoe UI", 9)  # 比默认小约 30%
         )
         self.update_lbl.pack(side="bottom", pady=2)
         self.update_lbl.bind("<Button-1>", lambda e: self.open_update())
 
-    # --------------- 跳转 Actions ---------------
+    # --------------- 跳转仓库 ---------------
     def open_update(self):
         if not self.lock_ui:
-            webbrowser.open("https://github.com/XXbq567/shutdown_timer/actions")
+            webbrowser.open("https://github.com/XXbq567/shutdown_timer")
 
     # --------------- 以下与之前完全一致 ---------------
     def switch_mode(self):
@@ -216,13 +218,17 @@ class ShutdownTimer:
         self.root.quit()
 
     def set_widgets_state(self, state):
+        # 模式单选按钮
         self.rb_clock.config(state=state)
         self.rb_count.config(state=state)
+        # 操作单选按钮
         for rb in self.action_rbs:
             rb.config(state=state)
+        # 时间控件
         self.clock_entry.config(state=state)
         self.hour_spin.config(state=state)
         self.min_spin.config(state=state)
+        # 启动按钮
         self.start_btn.config(state=state)
         # 更新链接
         self.update_lbl.config(state=state,
