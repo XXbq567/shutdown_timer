@@ -1,3 +1,10 @@
+"""
+定时关机 / 重启 / 睡眠 / 休眠 小工具
+作者  : XXbq567
+仓库  : https://github.com/XXbq567/shutdown_timer
+说明  : 开源、轻量级、无依赖，Windows 11 单文件 EXE
+"""
+
 import tkinter as tk
 from tkinter import ttk, messagebox
 import subprocess
@@ -225,3 +232,4 @@ if __name__ == "__main__":
     root = tk.Tk()
     ShutdownTimer(root)
     root.mainloop()
+
