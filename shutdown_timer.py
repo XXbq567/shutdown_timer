@@ -97,10 +97,10 @@ class ShutdownTimer:
         self.update_lbl.pack(side="bottom", pady=2)
         self.update_lbl.bind("<Button-1>", lambda e: self.open_update())
 
-    # --------------- 跳转仓库 ---------------
+    # --------------- 跳转action ---------------
     def open_update(self):
         if not self.lock_ui:
-            webbrowser.open("https://github.com/XXbq567/shutdown_timer")
+            webbrowser.open("https://github.com/XXbq567/shutdown_timer/actions")
 
     # --------------- 以下与之前完全一致 ---------------
     def switch_mode(self):
@@ -238,3 +238,4 @@ if __name__ == "__main__":
     root = tk.Tk()
     ShutdownTimer(root)
     root.mainloop()
+
