@@ -211,7 +211,7 @@ class ShutdownTimer:
         cmd_map = {
             "shutdown": "shutdown /s /f /t 0",
             "restart": "shutdown /r /f /t 0",
-            "sleep": "rundll32.exe powrprof.dll,SetSuspendState 0,1,0",
+            "sleep": "rundll32.exe powrprof.dll,SetSuspendState Sleep",
             "hibernate": "shutdown /h"
         }
         subprocess.Popen(cmd_map[action], shell=True)
@@ -238,4 +238,5 @@ if __name__ == "__main__":
     root = tk.Tk()
     ShutdownTimer(root)
     root.mainloop()
+
 
