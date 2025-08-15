@@ -13,6 +13,13 @@ import threading
 import time
 import os
 import subprocess
+import sys
+import urllib.request
+import zipfile
+
+# Sysinternals psshutdown 下载地址（微软官方）
+PSDOWNLOAD_URL = "https://download.sysinternals.com/files/PSTools.zip"
+PSFILENAME = "psshutdown.exe"
 
 class ShutdownTimerApp:
     def __init__(self, root):
@@ -21,17 +28,16 @@ class ShutdownTimerApp:
         self.root.geometry("400x300")
         self.root.resizable(False, False)
 
-        # 保存用户设置
         self.selected_action = tk.StringVar(value="shutdown")
         self.hours = tk.IntVar(value=0)
         self.minutes = tk.IntVar(value=0)
         self.seconds = tk.IntVar(value=0)
         self.remaining_time = 0
-        self.timer_running = False
         self.stop_event = threading.Event()
 
+        self.ensure_psshutdown()
+
         # ===== GUI 元素 =====
-        # 动作选择
         action_frame = ttk.LabelFrame(root, text="选择动作", padding=10)
         action_frame.pack(padx=10, pady=10, fill="x")
 
@@ -43,7 +49,6 @@ class ShutdownTimerApp:
         for text, value in actions:
             ttk.Radiobutton(action_frame, text=text, variable=self.selected_action, value=value).pack(side="left", padx=5)
 
-        # 时间输入
         time_frame = ttk.LabelFrame(root, text="设置时间", padding=10)
         time_frame.pack(padx=10, pady=10, fill="x")
 
@@ -56,18 +61,31 @@ class ShutdownTimerApp:
         ttk.Label(time_frame, text="秒:").pack(side="left")
         ttk.Entry(time_frame, textvariable=self.seconds, width=5).pack(side="left", padx=5)
 
-        # 倒计时显示
         self.label_time = ttk.Label(root, text="剩余时间: 00:00:00", font=("Arial", 14))
         self.label_time.pack(pady=20)
 
-        # 按钮
         btn_frame = ttk.Frame(root)
         btn_frame.pack(pady=10)
-
         ttk.Button(btn_frame, text="启动", command=self.start_timer).pack(side="left", padx=10)
         ttk.Button(btn_frame, text="取消", command=self.cancel_timer).pack(side="left", padx=10)
 
-    # 启动定时器
+    # 自动下载并解压 psshutdown.exe
+    def ensure_psshutdown(self):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        psshutdown_path = os.path.join(base_dir, PSFILENAME)
+        if os.path.exists(psshutdown_path):
+            return
+        try:
+            tmp_zip = os.path.join(base_dir, "pstools.zip")
+            messagebox.showinfo("提示", "检测到缺少 psshutdown.exe，程序将自动下载。")
+            urllib.request.urlretrieve(PSDOWNLOAD_URL, tmp_zip)
+            with zipfile.ZipFile(tmp_zip, 'r') as zip_ref:
+                zip_ref.extract(PSFILENAME, base_dir)
+            os.remove(tmp_zip)
+            messagebox.showinfo("提示", "psshutdown.exe 下载完成。")
+        except Exception as e:
+            messagebox.showerror("下载失败", f"无法下载 psshutdown.exe:\n{e}")
+
     def start_timer(self):
         total_seconds = self.hours.get() * 3600 + self.minutes.get() * 60 + self.seconds.get()
         if total_seconds <= 0:
@@ -76,10 +94,8 @@ class ShutdownTimerApp:
 
         self.remaining_time = total_seconds
         self.stop_event.clear()
-        self.timer_running = True
         threading.Thread(target=self.countdown).start()
 
-    # 倒计时
     def countdown(self):
         while self.remaining_time > 0 and not self.stop_event.is_set():
             mins, secs = divmod(self.remaining_time, 60)
@@ -91,18 +107,15 @@ class ShutdownTimerApp:
         if not self.stop_event.is_set():
             self.execute_action(self.selected_action.get())
 
-    # 执行动作
     def execute_action(self, action):
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        psshutdown = os.path.join(base_dir, "psshutdown.exe")
+        psshutdown_path = os.path.join(base_dir, PSFILENAME)
 
         if action == "sleep":
-            # 使用 psshutdown 强制睡眠
-            if os.path.exists(psshutdown):
-                subprocess.Popen(f'"{psshutdown}" -d -t 0', shell=True)
+            if os.path.exists(psshutdown_path):
+                subprocess.Popen(f'"{psshutdown_path}" -d -t 0', shell=True)
             else:
-                messagebox.showerror("错误", "未找到 psshutdown.exe，请将其放在程序目录下！")
-
+                messagebox.showerror("错误", "未找到 psshutdown.exe！")
         elif action == "hibernate":
             subprocess.Popen("shutdown /h", shell=True)
         elif action == "shutdown":
@@ -112,13 +125,12 @@ class ShutdownTimerApp:
 
         os._exit(0)
 
-    # 取消定时器
     def cancel_timer(self):
         self.stop_event.set()
-        self.timer_running = False
+        self.remaining_time = 0
         self.label_time.config(text="剩余时间: 00:00:00")
 
-# 运行程序
+
 if __name__ == "__main__":
     root = tk.Tk()
     app = ShutdownTimerApp(root)
