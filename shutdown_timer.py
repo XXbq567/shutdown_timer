@@ -14,6 +14,8 @@ import threading
 import time
 from datetime import datetime, timedelta
 import webbrowser
+import os
+
 
 class ShutdownTimer:
     def __init__(self, root):
@@ -102,7 +104,6 @@ class ShutdownTimer:
         if not self.lock_ui:
             webbrowser.open("https://github.com/XXbq567/shutdown_timer/actions")
 
-    # --------------- 以下与之前完全一致 ---------------
     def switch_mode(self):
         if self.mode_var.get() == "clock":
             self.countdown_frame.pack_forget()
@@ -197,8 +198,6 @@ class ShutdownTimer:
         self.lock_ui = False
         self.set_widgets_state("normal")
         self.status_lbl.config(text="已取消", foreground="red")
-        if self.task and self.task.is_alive():
-            self.task.join(timeout=0.1)
 
     def countdown_and_execute(self, seconds, action):
         while seconds > 0 and self.running:
@@ -208,35 +207,47 @@ class ShutdownTimer:
             seconds -= 1
         if not self.running:
             return
-        cmd_map = {
-            "shutdown": "shutdown /s /f /t 0",
-            "restart": "shutdown /r /f /t 0",
-            "sleep": "rundll32.exe powrprof.dll,SetSuspendState Sleep",
-            "hibernate": "shutdown /h"
-        }
-        subprocess.Popen(cmd_map[action], shell=True)
-        self.root.quit()
+        self.execute_action(action)
+
+    def execute_action(self, action):
+        if action == "sleep":
+            # 检查是否启用了休眠
+            result = subprocess.run("powercfg -query", shell=True, capture_output=True, text=True)
+            hibernate_enabled = "Hibernate" in result.stdout or "休眠" in result.stdout
+
+            if hibernate_enabled:
+                subprocess.run("powercfg -hibernate off", shell=True)
+
+            # 进入睡眠
+            subprocess.Popen("rundll32.exe powrprof.dll,SetSuspendState Sleep", shell=True)
+
+            # 恢复休眠功能（保证下次还能用休眠）
+            if hibernate_enabled:
+                subprocess.run("powercfg -hibernate on", shell=True)
+
+        elif action == "hibernate":
+            subprocess.Popen("shutdown /h", shell=True)
+        elif action == "shutdown":
+            subprocess.Popen("shutdown /s /f /t 0", shell=True)
+        elif action == "restart":
+            subprocess.Popen("shutdown /r /f /t 0", shell=True)
+
+        os._exit(0)
 
     def set_widgets_state(self, state):
-        # 模式单选按钮
         self.rb_clock.config(state=state)
         self.rb_count.config(state=state)
-        # 操作单选按钮
         for rb in self.action_rbs:
             rb.config(state=state)
-        # 时间控件
         self.clock_entry.config(state=state)
         self.hour_spin.config(state=state)
         self.min_spin.config(state=state)
-        # 启动按钮
         self.start_btn.config(state=state)
-        # 更新链接
         self.update_lbl.config(state=state,
                                fg=("blue" if state == "normal" else "gray"))
+
 
 if __name__ == "__main__":
     root = tk.Tk()
     ShutdownTimer(root)
     root.mainloop()
-
-
