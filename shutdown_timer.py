@@ -9,221 +9,99 @@
 
 import tkinter as tk
 from tkinter import ttk, messagebox
-import subprocess
 import threading
 import time
-from datetime import datetime, timedelta
-import webbrowser
 import os
+import subprocess
 
-
-class ShutdownTimer:
+class ShutdownTimerApp:
     def __init__(self, root):
         self.root = root
         self.root.title("定时关机工具")
-        self.root.geometry("360x260")
+        self.root.geometry("400x300")
         self.root.resizable(False, False)
 
-        self.running = False
-        self.task = None
-        self.lock_ui = False
+        # 保存用户设置
+        self.selected_action = tk.StringVar(value="shutdown")
+        self.hours = tk.IntVar(value=0)
+        self.minutes = tk.IntVar(value=0)
+        self.seconds = tk.IntVar(value=0)
+        self.remaining_time = 0
+        self.timer_running = False
+        self.stop_event = threading.Event()
 
-        # ---------------- 模式变量 ----------------
-        self.mode_var = tk.StringVar(value="countdown")
-        self.action_var = tk.StringVar(value="shutdown")
+        # ===== GUI 元素 =====
+        # 动作选择
+        action_frame = ttk.LabelFrame(root, text="选择动作", padding=10)
+        action_frame.pack(padx=10, pady=10, fill="x")
 
-        # ---------------- 模式选择 ----------------
-        self.mode_frame = ttk.LabelFrame(root, text="模式选择")
-        self.mode_frame.pack(fill="x", padx=10, pady=5)
+        actions = [("关机", "shutdown"),
+                   ("重启", "restart"),
+                   ("睡眠", "sleep"),
+                   ("休眠", "hibernate")]
 
-        self.rb_clock = ttk.Radiobutton(self.mode_frame, text="指定时间", value="clock",
-                                        variable=self.mode_var, command=self.switch_mode)
-        self.rb_clock.pack(side="left", padx=5)
+        for text, value in actions:
+            ttk.Radiobutton(action_frame, text=text, variable=self.selected_action, value=value).pack(side="left", padx=5)
 
-        self.rb_count = ttk.Radiobutton(self.mode_frame, text="倒计时", value="countdown",
-                                        variable=self.mode_var, command=self.switch_mode)
-        self.rb_count.pack(side="left", padx=5)
+        # 时间输入
+        time_frame = ttk.LabelFrame(root, text="设置时间", padding=10)
+        time_frame.pack(padx=10, pady=10, fill="x")
 
-        # ---------------- 时间输入区 ----------------
-        self.time_frame = ttk.Frame(root)
-        self.time_frame.pack(fill="x", padx=10, pady=5)
+        ttk.Label(time_frame, text="小时:").pack(side="left")
+        ttk.Entry(time_frame, textvariable=self.hours, width=5).pack(side="left", padx=5)
 
-        # 倒计时
-        self.countdown_frame = ttk.Frame(self.time_frame)
-        self.countdown_frame.pack(side="left")
-        ttk.Label(self.countdown_frame, text="倒计时 时").pack(side="left")
-        self.hour_spin = ttk.Spinbox(self.countdown_frame, from_=0, to=99, width=3)
-        self.hour_spin.insert(0, "1")
-        self.hour_spin.pack(side="left")
-        ttk.Label(self.countdown_frame, text="分").pack(side="left")
-        self.min_spin = ttk.Spinbox(self.countdown_frame, from_=0, to=59, width=3)
-        self.min_spin.insert(0, "0")
-        self.min_spin.pack(side="left")
+        ttk.Label(time_frame, text="分钟:").pack(side="left")
+        ttk.Entry(time_frame, textvariable=self.minutes, width=5).pack(side="left", padx=5)
 
-        # 指定时间
-        self.clock_frame = ttk.Frame(self.time_frame)
-        self.clock_frame.pack_forget()
-        ttk.Label(self.clock_frame, text="目标时间 (HH:MM):").pack(side="left")
-        self.clock_entry = ttk.Entry(self.clock_frame, width=8)
-        self.clock_entry.insert(0, "23:30")
-        self.clock_entry.pack(side="left", padx=5)
+        ttk.Label(time_frame, text="秒:").pack(side="left")
+        ttk.Entry(time_frame, textvariable=self.seconds, width=5).pack(side="left", padx=5)
 
-        # ---------------- 操作选择 ----------------
-        self.action_frame = ttk.LabelFrame(root, text="执行操作")
-        self.action_frame.pack(fill="x", padx=10, pady=5)
+        # 倒计时显示
+        self.label_time = ttk.Label(root, text="剩余时间: 00:00:00", font=("Arial", 14))
+        self.label_time.pack(pady=20)
 
-        self.action_rbs = []
-        action_map = [("关机", "shutdown"), ("重启", "restart"), ("睡眠", "sleep"), ("休眠", "hibernate")]
-        for txt, val in action_map:
-            rb = ttk.Radiobutton(self.action_frame, text=txt, value=val, variable=self.action_var)
-            rb.pack(side="left", padx=5)
-            self.action_rbs.append(rb)
-
-        # ---------------- 按钮区 ----------------
+        # 按钮
         btn_frame = ttk.Frame(root)
-        btn_frame.pack(pady=5)
-        self.start_btn = ttk.Button(btn_frame, text="启动", command=self.start_timer)
-        self.start_btn.pack(side="left", padx=10)
-        self.cancel_btn = ttk.Button(btn_frame, text="取消", command=self.cancel_timer)
-        self.cancel_btn.pack(side="left", padx=10)
+        btn_frame.pack(pady=10)
 
-        # ---------------- 状态标签 ----------------
-        self.status_lbl = ttk.Label(root, text="未启动", foreground="blue")
-        self.status_lbl.pack(pady=2)
+        ttk.Button(btn_frame, text="启动", command=self.start_timer).pack(side="left", padx=10)
+        ttk.Button(btn_frame, text="取消", command=self.cancel_timer).pack(side="left", padx=10)
 
-        # ---------------- 更新链接（最底部居中，小字） ----------------
-        self.update_lbl = tk.Label(
-            root, text="更新", fg="blue", cursor="hand2",
-            font=("Segoe UI", 9)  # 比默认小约 30%
-        )
-        self.update_lbl.pack(side="bottom", pady=2)
-        self.update_lbl.bind("<Button-1>", lambda e: self.open_update())
-
-    # --------------- 跳转action ---------------
-    def open_update(self):
-        if not self.lock_ui:
-            webbrowser.open("https://github.com/XXbq567/shutdown_timer/actions")
-
-    def switch_mode(self):
-        if self.mode_var.get() == "clock":
-            self.countdown_frame.pack_forget()
-            self.clock_frame.pack(side="left", padx=20)
-        else:
-            self.clock_frame.pack_forget()
-            self.countdown_frame.pack(side="left")
-
+    # 启动定时器
     def start_timer(self):
-        if self.lock_ui:
-            messagebox.showinfo("提示", "请先取消当前任务后再修改。")
+        total_seconds = self.hours.get() * 3600 + self.minutes.get() * 60 + self.seconds.get()
+        if total_seconds <= 0:
+            messagebox.showerror("错误", "请输入一个大于 0 的时间！")
             return
 
-        mode = self.mode_var.get()
-        action = self.action_var.get()
-        action_name = {"shutdown": "关机", "restart": "重启", "sleep": "睡眠", "hibernate": "休眠"}[action]
+        self.remaining_time = total_seconds
+        self.stop_event.clear()
+        self.timer_running = True
+        threading.Thread(target=self.countdown).start()
 
-        if mode == "clock":
-            try:
-                target_str = self.clock_entry.get().strip()
-                target_time = datetime.strptime(target_str, "%H:%M").time()
-                now = datetime.now()
-                target_dt = datetime.combine(now.date(), target_time)
-                if target_dt <= now:
-                    target_dt += timedelta(days=1)
-                seconds = int((target_dt - now).total_seconds())
-                confirm_text = f"确定在 {target_str} 执行【{action_name}】吗？"
-            except ValueError:
-                messagebox.showerror("错误", "时间格式应为 HH:MM")
-                return
-        else:
-            try:
-                h = int(self.hour_spin.get())
-                m = int(self.min_spin.get())
-                if h == 0 and m == 0:
-                    messagebox.showerror("错误", "倒计时不能为 0")
-                    return
-                seconds = h * 3600 + m * 60
-                confirm_text = f"确定在 {h}小时{m}分钟后执行【{action_name}】吗？"
-            except ValueError:
-                messagebox.showerror("错误", "请输入有效数字")
-                return
-
-        if not self.ask_yes_no(confirm_text):
-            return
-
-        self.lock_ui = True
-        self.set_widgets_state("disabled")
-        self.running = True
-        self.status_lbl.config(text="等待中…", foreground="green")
-
-        self.task = threading.Thread(target=self.countdown_and_execute, args=(seconds, action))
-        self.task.daemon = True
-        self.task.start()
-
-    def ask_yes_no(self, message):
-        top = tk.Toplevel(self.root)
-        top.title("请确认")
-        top.resizable(False, False)
-        top.transient(self.root)
-        top.grab_set()
-        top.lift()
-
-        ttk.Label(top, text=message, wraplength=300).pack(pady=10)
-        result = tk.BooleanVar(value=False)
-
-        def yes():
-            result.set(True)
-            top.destroy()
-
-        def no():
-            result.set(False)
-            top.destroy()
-
-        btn_frame = ttk.Frame(top)
-        btn_frame.pack(pady=5)
-        ttk.Button(btn_frame, text="确定", command=yes).pack(side="left", padx=10)
-        ttk.Button(btn_frame, text="取消", command=no).pack(side="left", padx=10)
-
-        top.protocol("WM_DELETE_WINDOW", no)
-
-        top.update_idletasks()
-        w, h = top.winfo_width(), top.winfo_height()
-        x = self.root.winfo_x() + (self.root.winfo_width() - w) // 2
-        y = self.root.winfo_y() + (self.root.winfo_height() - h) // 2
-        top.geometry(f"+{x}+{y}")
-        top.wait_window()
-        return result.get()
-
-    def cancel_timer(self):
-        self.running = False
-        self.lock_ui = False
-        self.set_widgets_state("normal")
-        self.status_lbl.config(text="已取消", foreground="red")
-
-    def countdown_and_execute(self, seconds, action):
-        while seconds > 0 and self.running:
-            mins, secs = divmod(seconds, 60)
-            self.status_lbl.config(text=f"剩余 {mins:02d}:{secs:02d}")
+    # 倒计时
+    def countdown(self):
+        while self.remaining_time > 0 and not self.stop_event.is_set():
+            mins, secs = divmod(self.remaining_time, 60)
+            hrs, mins = divmod(mins, 60)
+            self.label_time.config(text=f"剩余时间: {hrs:02}:{mins:02}:{secs:02}")
             time.sleep(1)
-            seconds -= 1
-        if not self.running:
-            return
-        self.execute_action(action)
+            self.remaining_time -= 1
 
+        if not self.stop_event.is_set():
+            self.execute_action(self.selected_action.get())
+
+    # 执行动作
     def execute_action(self, action):
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        psshutdown = os.path.join(base_dir, "psshutdown.exe")
+
         if action == "sleep":
-            # 检查是否启用了休眠
-            result = subprocess.run("powercfg -query", shell=True, capture_output=True, text=True)
-            hibernate_enabled = "Hibernate" in result.stdout or "休眠" in result.stdout
-
-            if hibernate_enabled:
-                subprocess.run("powercfg -hibernate off", shell=True)
-
-            # 进入睡眠
-            subprocess.Popen("rundll32.exe powrprof.dll,SetSuspendState Sleep", shell=True)
-
-            # 恢复休眠功能（保证下次还能用休眠）
-            if hibernate_enabled:
-                subprocess.run("powercfg -hibernate on", shell=True)
+            # 使用 psshutdown 强制睡眠
+            if os.path.exists(psshutdown):
+                subprocess.Popen(f'"{psshutdown}" -d -t 0', shell=True)
+            else:
+                messagebox.showerror("错误", "未找到 psshutdown.exe，请将其放在程序目录下！")
 
         elif action == "hibernate":
             subprocess.Popen("shutdown /h", shell=True)
@@ -234,20 +112,14 @@ class ShutdownTimer:
 
         os._exit(0)
 
-    def set_widgets_state(self, state):
-        self.rb_clock.config(state=state)
-        self.rb_count.config(state=state)
-        for rb in self.action_rbs:
-            rb.config(state=state)
-        self.clock_entry.config(state=state)
-        self.hour_spin.config(state=state)
-        self.min_spin.config(state=state)
-        self.start_btn.config(state=state)
-        self.update_lbl.config(state=state,
-                               fg=("blue" if state == "normal" else "gray"))
+    # 取消定时器
+    def cancel_timer(self):
+        self.stop_event.set()
+        self.timer_running = False
+        self.label_time.config(text="剩余时间: 00:00:00")
 
-
+# 运行程序
 if __name__ == "__main__":
     root = tk.Tk()
-    ShutdownTimer(root)
+    app = ShutdownTimerApp(root)
     root.mainloop()
