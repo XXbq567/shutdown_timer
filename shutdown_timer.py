@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-定时关机 / 重启 / 睡眠 / 休眠 小工具
-作者  : XXbq567
+定时关机 / 睡眠 小工具
+作者  : XXbq567（修改版）
 仓库  : https://github.com/XXbq567/shutdown_timer
 说明  : 开源、轻量级、无依赖，Windows 11 单文件 EXE
 """
@@ -21,7 +21,7 @@ class ShutdownTimer:
     def __init__(self, root):
         self.root = root
         self.root.title("定时关机工具")
-        self.root.geometry("360x260")
+        self.root.geometry("360x240")
         self.root.resizable(False, False)
 
         self.running = False
@@ -73,10 +73,10 @@ class ShutdownTimer:
         self.action_frame.pack(fill="x", padx=10, pady=5)
 
         self.action_rbs = []
-        action_map = [("关机", "shutdown"), ("重启", "restart"), ("睡眠", "sleep"), ("休眠", "hibernate")]
+        action_map = [("关机", "shutdown"), ("睡眠", "sleep")]  # ✅ 只保留关机 + 睡眠
         for txt, val in action_map:
             rb = ttk.Radiobutton(self.action_frame, text=txt, value=val, variable=self.action_var)
-            rb.pack(side="left", padx=5)
+            rb.pack(side="left", padx=20)
             self.action_rbs.append(rb)
 
         # ---------------- 按钮区 ----------------
@@ -94,7 +94,7 @@ class ShutdownTimer:
         # ---------------- 更新链接（最底部居中，小字） ----------------
         self.update_lbl = tk.Label(
             root, text="更新", fg="blue", cursor="hand2",
-            font=("Segoe UI", 9)  # 比默认小约 30%
+            font=("Segoe UI", 9)
         )
         self.update_lbl.pack(side="bottom", pady=2)
         self.update_lbl.bind("<Button-1>", lambda e: self.open_update())
@@ -119,8 +119,9 @@ class ShutdownTimer:
 
         mode = self.mode_var.get()
         action = self.action_var.get()
-        action_name = {"shutdown": "关机", "restart": "重启", "sleep": "睡眠", "hibernate": "休眠"}[action]
+        action_name = {"shutdown": "关机", "sleep": "睡眠"}[action]
 
+        # 获取时间
         if mode == "clock":
             try:
                 target_str = self.clock_entry.get().strip()
@@ -147,6 +148,7 @@ class ShutdownTimer:
                 messagebox.showerror("错误", "请输入有效数字")
                 return
 
+        # ✅ 双重确认
         if not self.ask_yes_no(confirm_text):
             return
 
@@ -224,13 +226,8 @@ class ShutdownTimer:
             # 恢复休眠功能（保证下次还能用休眠）
             if hibernate_enabled:
                 subprocess.run("powercfg -hibernate on", shell=True)
-
-        elif action == "hibernate":
-            subprocess.Popen("shutdown /h", shell=True)
         elif action == "shutdown":
             subprocess.Popen("shutdown /s /f /t 0", shell=True)
-        elif action == "restart":
-            subprocess.Popen("shutdown /r /f /t 0", shell=True)
 
         os._exit(0)
 
